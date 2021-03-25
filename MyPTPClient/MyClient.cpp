@@ -16,8 +16,8 @@ MyClient::MyClient() : QWidget()
 	
 
 	connect(m_conBtn, SIGNAL(clicked()), this, SLOT(slotConBtnClicked()));
+	connect(m_ipEnter, SIGNAL(returnPressed()), this, SLOT(slotConBtnClicked()));
 	connect(m_hostBtn, SIGNAL(clicked()), this, SLOT(slotHostBtnClicked()));
-	connect(m_sendBtn, SIGNAL(clicked()), this, SLOT(slotSendToServer()));
 
 	/* Layout setup */
 	m_conBtn->setMinimumSize(40, 25);
@@ -49,6 +49,7 @@ void MyClient::slotHostBtnClicked()
 	}
 
 	connect(m_server, SIGNAL(newConnection()), this, SLOT(slotNewConnection()));
+
 }
 
 void MyClient::slotNewConnection()
@@ -92,7 +93,6 @@ void MyClient::sendToClient(QTcpSocket* pServerSocket, const QString& str)
 {
 	QByteArray  arrBlock;
 	QDataStream out(&arrBlock, QIODevice::WriteOnly);
-	out.setVersion(QDataStream::Qt_4_2);
 	out << quint16(0) << QTime::currentTime() << str;
 
 	out.device()->seek(0);
@@ -110,7 +110,7 @@ void MyClient::slotConBtnClicked()
 	m_socket->connectToHost(strHostIP, mPort);
 	
 	m_nNextBlockSize = 0;
-	//To do slots//
+	
 	connect(m_socket, SIGNAL(connected()), SLOT(slotConnected()));
 	connect(m_socket, SIGNAL(readyRead()), SLOT(slotReadyRead()));
 	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slotError(QAbstractSocket::SocketError)));
@@ -126,7 +126,6 @@ void MyClient::slotConnected()
 void MyClient::slotReadyRead()
 {
 	QDataStream in(m_socket);
-	in.setVersion(QDataStream::Qt_4_2);
 	for (;;) {
 		if (!m_nNextBlockSize) {
 			if (m_socket->bytesAvailable() < sizeof(quint16)) {
@@ -165,7 +164,6 @@ void MyClient::slotSendToServer()
 {
 	QByteArray  arrBlock;
 	QDataStream out(&arrBlock, QIODevice::WriteOnly);
-	out.setVersion(QDataStream::Qt_4_2);
 	out << quint16(0) << QTime::currentTime() << m_inputBox->text();
 
 	out.device()->seek(0);
