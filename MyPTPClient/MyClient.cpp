@@ -41,6 +41,7 @@ MyClient::MyClient() : QWidget()
 void MyClient::slotHostBtnClicked()
 {
 	m_server = new QTcpServer;
+	m_serverIp->setText("Server started");
 	if (!m_server->listen(QHostAddress::Any, mPort))
 	{
 		QMessageBox::critical(0, "Server Error", "Unable to start the server:" + m_server->errorString());
@@ -64,7 +65,6 @@ void MyClient::slotReadClient()
 {
 	QTcpSocket* pClientSocket = (QTcpSocket*)sender();
 	QDataStream in(pClientSocket);
-	in.setVersion(QDataStream::Qt_4_2);
 	for (;;) {
 		if (!m_nNextBlockSize) {
 			if (pClientSocket->bytesAvailable() < sizeof(quint16)) {
@@ -81,15 +81,15 @@ void MyClient::slotReadClient()
 		in >> time >> str;
 
 		QString strMessage = time.toString() + " " + "Client has send - " + str;
-		m_chatLog->append(strMessage);
+		//m_chatLog->append(strMessage);
 
 		m_nNextBlockSize = 0;
 
-		sendToClient(pClientSocket, "Server Response: Received \"" + str + "\"");
+		sendToClient(pClientSocket, "User: " + str);
 	}
 }
 
-void MyClient::sendToClient(QTcpSocket* pServerSocket, const QString& str)
+void MyClient::sendToClient(QTcpSocket* pClientSocket, const QString& str)
 {
 	QByteArray  arrBlock;
 	QDataStream out(&arrBlock, QIODevice::WriteOnly);
@@ -98,7 +98,7 @@ void MyClient::sendToClient(QTcpSocket* pServerSocket, const QString& str)
 	out.device()->seek(0);
 	out << quint16(arrBlock.size() - sizeof(quint16));
 
-	pServerSocket->write(arrBlock);
+	pClientSocket->write(arrBlock);
 }
 
 void MyClient::slotConBtnClicked()

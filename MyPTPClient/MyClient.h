@@ -22,6 +22,7 @@ private:
 	QTcpServer*		m_server;
 	QTcpSocket*		m_socket;
 	quint16 m_nNextBlockSize;
+	
 
 public:
 	MyClient();
