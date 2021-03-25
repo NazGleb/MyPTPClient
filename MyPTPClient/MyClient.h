@@ -5,6 +5,8 @@
 #include <qtcpsocket.h>
 #include <qtcpserver.h>
 
+const int mPort = 2323;
+
 class MyClient : public QWidget
 {
 	Q_OBJECT
@@ -16,17 +18,26 @@ private:
 	QPushButton*	m_hostBtn;
 	QLabel*			m_serverIp;
 	QTextEdit*		m_chatLog;
-	QTextEdit*		m_txtBox;
-	QTcpSocket* m_socket;
-	QTcpServer* m_server;
-
+	QLineEdit*		m_inputBox;
+	QTcpServer*		m_server;
+	QTcpSocket*		m_socket;
+	quint16 m_nNextBlockSize;
 
 public:
 	MyClient();
-
-public slots:
-	void slotConBtnClicked();
+	
+private slots: //server slots
 	void slotHostBtnClicked();
-	void slotSendBtnClicked();
+	void slotNewConnection();
+	void slotReadClient();
 
+private: //server function
+	void sendToClient(QTcpSocket* pServerSocket, const QString& str);
+
+private slots: //socket slots
+	void slotConBtnClicked();
+	void slotConnected();
+	void slotReadyRead();
+	void slotError(QAbstractSocket::SocketError);
+	void slotSendToServer();
 };

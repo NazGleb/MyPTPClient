@@ -8,64 +8,169 @@ MyClient::MyClient() : QWidget()
 	m_conBtn = new QPushButton("Connect");
 	m_sendBtn = new QPushButton("Send");
 	m_chatLog = new QTextEdit("");
-	m_txtBox = new QTextEdit("");
+	m_inputBox = new QLineEdit("");
 	m_serverIp = new QLabel("");
 	m_hostBtn = new QPushButton("Start server");
+
+	
 	
 
+	connect(m_conBtn, SIGNAL(clicked()), this, SLOT(slotConBtnClicked()));
+	connect(m_hostBtn, SIGNAL(clicked()), this, SLOT(slotHostBtnClicked()));
+	connect(m_sendBtn, SIGNAL(clicked()), this, SLOT(slotSendToServer()));
+
+	/* Layout setup */
 	m_conBtn->setMinimumSize(40, 25);
 	m_ipEnter->setMinimumHeight(25);
-	m_txtBox->setMaximumHeight(50);
+	m_inputBox->setMaximumHeight(50);
 	m_sendBtn->setMinimumSize(50, 50);
 	m_chatLog->setMinimumSize(100, 100);
 	
 	m_chatLog->setReadOnly(true);
-
 
 	m_gridLayout->addWidget(m_serverIp, 0, 0, 1, 1);
 	m_gridLayout->addWidget(m_hostBtn, 0, 1, 1, 1);
 	m_gridLayout->addWidget(m_ipEnter, 1, 0, 1, 1);
 	m_gridLayout->addWidget(m_conBtn, 1, 1, 1, 1);
 	m_gridLayout->addWidget(m_chatLog, 2, 0, 1, 2);
-	m_gridLayout->addWidget(m_txtBox, 3, 0, 1, 1);
+	m_gridLayout->addWidget(m_inputBox, 3, 0, 1, 1);
 	m_gridLayout->addWidget(m_sendBtn, 3, 1, 1, 1);
-
-
-	m_socket = new QTcpSocket;
-	
-
-	connect(m_conBtn, SIGNAL(clicked()), this, SLOT(slotConBtnClicked()));
-	connect(m_hostBtn, SIGNAL(clicked()), this, SLOT(slotHostBtnClicked()));
-	connect(m_sendBtn, SIGNAL(clicked()), this, SLOT(slotSendBtnClicked()));
 }
 
-
-
-void MyClient::slotConBtnClicked()
-{
-	qDebug() << "Attempting connection.";
-	m_socket->connectToHost(m_ipEnter->text() , 2323, QIODevice::ReadWrite);
-	m_ipEnter->clear();
-
-}
 
 void MyClient::slotHostBtnClicked()
 {
 	m_server = new QTcpServer;
+	if (!m_server->listen(QHostAddress::Any, mPort))
+	{
+		QMessageBox::critical(0, "Server Error", "Unable to start the server:" + m_server->errorString());
+		m_server->close();
+		return;
+	}
 
-	QTime t = QTime::currentTime();
-	QString str = t.toString("hh:mm:ss -> ") + "Server started";
-	m_chatLog->append(str);
-
-	m_server->listen(QHostAddress::Any, 2323);
-	m_serverIp->setText(m_server->serverAddress().toString());
+	connect(m_server, SIGNAL(newConnection()), this, SLOT(slotNewConnection()));
 }
 
-void MyClient::slotSendBtnClicked()
+void MyClient::slotNewConnection()
 {
-	QTime t = QTime::currentTime();
-	QString str = t.toString("hh:mm:ss -> ") + m_socket->state();
-	qDebug() << str;
-	m_chatLog->append(str);
+	QTcpSocket* pServerSideSocket = m_server->nextPendingConnection();
+	connect(pServerSideSocket, SIGNAL(disconnected()), this, SLOT(deleteLater()));
+	connect(pServerSideSocket, SIGNAL(readyRead()), this, SLOT(slotReadClient()));
+	sendToClient(pServerSideSocket, "Server Response: Connected!"); //реализовать функцию
+}
 
+void MyClient::slotReadClient()
+{
+	QTcpSocket* pClientSocket = (QTcpSocket*)sender();
+	QDataStream in(pClientSocket);
+	in.setVersion(QDataStream::Qt_4_2);
+	for (;;) {
+		if (!m_nNextBlockSize) {
+			if (pClientSocket->bytesAvailable() < sizeof(quint16)) {
+				break;
+			}
+			in >> m_nNextBlockSize;
+		}
+
+		if (pClientSocket->bytesAvailable() < m_nNextBlockSize) {
+			break;
+		}
+		QTime   time;
+		QString str;
+		in >> time >> str;
+
+		QString strMessage = time.toString() + " " + "Client has send - " + str;
+		m_chatLog->append(strMessage);
+
+		m_nNextBlockSize = 0;
+
+		sendToClient(pClientSocket, "Server Response: Received \"" + str + "\"");
+	}
+}
+
+void MyClient::sendToClient(QTcpSocket* pServerSocket, const QString& str)
+{
+	QByteArray  arrBlock;
+	QDataStream out(&arrBlock, QIODevice::WriteOnly);
+	out.setVersion(QDataStream::Qt_4_2);
+	out << quint16(0) << QTime::currentTime() << str;
+
+	out.device()->seek(0);
+	out << quint16(arrBlock.size() - sizeof(quint16));
+
+	pServerSocket->write(arrBlock);
+}
+
+void MyClient::slotConBtnClicked()
+{
+	m_socket = new QTcpSocket(this);
+
+	QString strHostIP = m_ipEnter->text();
+	m_ipEnter->clear();
+	m_socket->connectToHost(strHostIP, mPort);
+	
+	m_nNextBlockSize = 0;
+	//To do slots//
+	connect(m_socket, SIGNAL(connected()), SLOT(slotConnected()));
+	connect(m_socket, SIGNAL(readyRead()), SLOT(slotReadyRead()));
+	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slotError(QAbstractSocket::SocketError)));
+	connect(m_inputBox, SIGNAL(returnPressed()), this, SLOT(slotSendToServer()));
+	connect(m_sendBtn, SIGNAL(clicked()), this, SLOT(slotSendToServer()));
+}
+
+void MyClient::slotConnected()
+{
+	m_chatLog->append("Received the connected() signal");
+}
+
+void MyClient::slotReadyRead()
+{
+	QDataStream in(m_socket);
+	in.setVersion(QDataStream::Qt_4_2);
+	for (;;) {
+		if (!m_nNextBlockSize) {
+			if (m_socket->bytesAvailable() < sizeof(quint16)) {
+				break;
+			}
+			in >> m_nNextBlockSize;
+		}
+
+		if (m_socket->bytesAvailable() < m_nNextBlockSize) {
+			break;
+		}
+		QTime   time;
+		QString str;
+		in >> time >> str;
+
+		m_chatLog->append(time.toString() + " " + str);
+		m_nNextBlockSize = 0;
+	}
+}
+
+void MyClient::slotError(QAbstractSocket::SocketError err)
+{
+	QString strError =
+		"Error: " + (err == QAbstractSocket::HostNotFoundError ?
+			"The host was not found." :
+			err == QAbstractSocket::RemoteHostClosedError ?
+			"The remote host is closed." :
+			err == QAbstractSocket::ConnectionRefusedError ?
+			"The connection was refused." :
+			QString(m_socket->errorString())
+			);
+	m_chatLog->append(strError);
+}
+
+void MyClient::slotSendToServer()
+{
+	QByteArray  arrBlock;
+	QDataStream out(&arrBlock, QIODevice::WriteOnly);
+	out.setVersion(QDataStream::Qt_4_2);
+	out << quint16(0) << QTime::currentTime() << m_inputBox->text();
+
+	out.device()->seek(0);
+	out << quint16(arrBlock.size() - sizeof(quint16));
+
+	m_socket->write(arrBlock);
+	m_inputBox->setText("");
 }
