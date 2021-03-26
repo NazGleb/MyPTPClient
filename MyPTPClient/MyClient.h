@@ -22,6 +22,10 @@ private:
 	QTcpServer*		m_server;
 	QTcpSocket*		m_socket;
 	quint16 m_nNextBlockSize;
+	QTcpSocket* pServerSideSocket;
+	QVector<QTcpSocket*> mClients;
+
+	bool isServer;
 
 public:
 	MyClient();
@@ -36,7 +40,6 @@ private: //server function
 
 private slots: //socket slots
 	void slotConBtnClicked();
-	void slotConnected();
 	void slotReadyRead();
 	void slotError(QAbstractSocket::SocketError);
 	void slotSendToServer();
